@@ -1,0 +1,161 @@
+#include <iostream>
+#include <vector>
+#include <string>
+#include <sstream>
+#include <algorithm>
+#include <cassert>
+using namespace std;
+
+//heloer function 1 for spliting string
+vector<string> split(const string& s, char delimiter)
+{
+    vector<string> tokens;
+    string token;
+    istringstream tokenStream(s);
+    while (getline(tokenStream, token, delimiter))
+    {
+        tokens.push_back(token);
+    }
+    return tokens;
+}
+
+//helper function 2, for getting Price
+//a pair is a special container that holds only two values. {6,7}. Almost like an array of fixed size of two.
+int getPriceOnDay(int day, const vector<pair<int, int>>& priceHistory)
+{
+    int currentPrice = 0;
+    for (const auto& p : priceHistory)
+    {
+        if (p.first <= day)
+            currentPrice = p.second;
+        else
+            break;
+    }
+    return currentPrice;
+}
+
+vector<string> findPotentialBadTraders(vector<string>& data)
+{
+    vector<string> result;
+
+    // Store price history: day to price
+    vector<pair<int, int>> priceHistory;  // (day, price)
+
+    // Store all trades
+    struct Trade {
+        int day;
+        string trader;
+        string type;  // "BUY" or "SELL"
+        int amount;
+    };
+    vector<Trade> trades;
+
+    //retrieve input data
+    for (const string& line : data)
+    {
+        vector<string> tokens = split(line, '|');
+
+        if (tokens.size() == 2)  // Price entry: DAY|PRICE
+        {
+            int day = stoi(tokens[0]);
+            int price = stoi(tokens[1]);
+            priceHistory.push_back({ day, price });
+        }
+        else if (tokens.size() == 4)  // Trade entry: DAY|TRADER|TYPE|AMOUNT
+        {
+            Trade t;
+            t.day = stoi(tokens[0]);
+            t.trader = tokens[1];
+            t.type = tokens[2];
+            t.amount = stoi(tokens[3]);
+            trades.push_back(t);
+        }
+    }
+
+    // Check each trade
+    for (const Trade& trade : trades)
+    {
+        int priceAtTrade = getPriceOnDay(trade.day, priceHistory);
+
+        // Check prices within 3-day window (days: trade.day+1 to trade.day+3)
+        int maxProfit = 0;
+
+        for (int futureDay = trade.day + 1; futureDay <= trade.day + 3; futureDay++)
+        {
+            int futurePrice = getPriceOnDay(futureDay, priceHistory);
+            int priceDiff = futurePrice - priceAtTrade;
+
+            int profit = 0;
+            if (trade.type == "BUY")
+            {
+                // Profit from buying: (future price - trade price) * amount
+                profit = (int)priceDiff * trade.amount;
+            }
+            else
+            {
+                // Profit from selling: (trade price - future price) * amount
+                // (avoiding loss is like making profit)
+                profit = (int)(-priceDiff) * trade.amount;
+            }
+
+            maxProfit = max(maxProfit, profit);
+        }
+        if (maxProfit >= 500000)
+        {
+            string entry = to_string(trade.day) + "|" + trade.trader;
+            // Check for duplicates before adding
+            bool found = false;
+            for (const string& existingEntry : result)
+            {
+                if (existingEntry == entry)
+                {
+                    found = true;
+                    break;
+                }
+            }
+            if (!found)
+            {
+                result.push_back(entry);
+            }
+        }
+    }
+    // Sort by day, then by trader name
+    //sort takes a function, and since this function wont be used anywhere else it can be a lambda function
+    //though actually you don't need to sort the results to pass the test case.
+    sort(result.begin(), result.end(), [](const string& a, const string& b) {
+        vector<string> tokensA = split(a, '|');
+        vector<string> tokensB = split(b, '|');
+
+        int dayA = stoi(tokensA[0]);
+        int dayB = stoi(tokensB[0]);
+
+        if (dayA != dayB)
+            return dayA < dayB;  // Sort by day first
+        else
+            return tokensA[1] < tokensB[1];  // Then by trader name
+        });
+    return result;
+}
+
+// ========== TEST FUNCTION (from PDF) ==========
+void testthree()
+{
+    istringstream in("0|20\n0|Kristi|SELL|300\n0|Will|BUY|500\n0|Tom|BUY|5000\n0|Shilpa|BUY|150\n1|Tom|BUY|150000\n3|25\n5|Shilpa|SELL|150\n8|Kristi|SELL|60000\n9|Shilpa|BUY|50\n10|15\n11|5\n14|Will|BUY|10000\n15|Will|BUY|10000\n16|Will|BUY|10000\n17|25");
+    string str;
+    vector<string> inputVec;
+    while (getline(in, str)) {
+        inputVec.push_back(str);
+    }
+    vector<string> resV = findPotentialBadTraders(inputVec);
+    assert(resV.size() == 2 && resV[0] == "1|Tom" && resV[1] == "8|Kristi");
+}
+
+int main()
+{
+    cout << "Enter test number: ";
+    int n;
+    cin >> n;
+    testthree();
+    cout << "Passed" << endl;
+    return 0;
+}
